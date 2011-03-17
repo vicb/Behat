@@ -189,11 +189,48 @@ class Definition
             }
         }
 
-        array_unshift($values, $environment);
-        call_user_func_array($this->callback, $values);
+        $useNamedParameters = false;
+        foreach ($values as $name => $value) {
+            if (!is_int($name)) {
+                $useNamedParameters = true;
+                break;
+            }
+        }
+
+        if ($useNamedParameters) {
+            $arguments = $this->getFunctionArguments($this->callback);
+            array_shift($arguments);
+            $params = array();
+            foreach ($arguments as $name => $required) {
+                if (!array_key_exists($name, $values)) {
+                    if ($required) {
+                        throw new \Exception(sprintf('The named argument "%s" is not defined!', $name));
+                    }
+                } else {
+                    $params[] = $values[$name];
+                }                
+            }
+            array_unshift($params, $environment);
+            call_user_func_array($this->callback, $params);
+        } else {
+            array_unshift($values, $environment);
+            call_user_func_array($this->callback, $values);
+        }
 
         if (null !== $oldHandler) {
             set_error_handler($oldHandler);
         }
+    }
+
+    protected function getFunctionArguments(\Closure $closure)
+    {
+        $r = new \ReflectionFunction($closure);
+
+        $arguments = array();
+        foreach ($r->getParameters() as $param) {
+            $arguments[$param->getName()] = !$param->isDefaultValueAvailable();
+        }
+
+        return $arguments;
     }
 }
